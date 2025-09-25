@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulado – Estratégia e Diagnóstico</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;line-height:1.35;margin:0;background:#f7f7f7}
+  header{background:#111;color:#fff;padding:16px 20px}
+  main{max-width:1000px;margin:20px auto;padding:0 16px}
+  .card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;margin:14px 0;padding:16px}
+  .q-title{font-weight:600;margin-bottom:10px}
+  .options{display:grid;gap:8px;margin:10px 0}
+  .option{display:flex;align-items:flex-start;gap:8px;padding:10px;border:1px solid #ddd;border-radius:8px;background:#fafafa;cursor:pointer}
+  .option input{margin-top:3px}
+  .option.correct{border-color:#2e7d32;background:#edf7ed}
+  .option.wrong{border-color:#c62828;background:#fdecea}
+  .feedback{margin-top:10px;padding:10px;border-left:4px solid #ddd;background:#fcfcfc;border-radius:6px}
+  .feedback.ok{border-color:#2e7d32;background:#f2fbf3}
+  .feedback.err{border-color:#c62828;background:#fff6f6}
+  .controls{position:sticky;bottom:0;background:rgba(255,255,255,.95);border-top:1px solid #e6e6e6;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px}
+  button{border:1px solid #111;background:#111;color:#fff;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
+  button.secondary{background:#fff;color:#111}
+  .score{font-weight:700}
+  .muted{color:#666}
+  footer{color:#666;text-align:center;padding:24px}
+  .small{font-size:.92rem}
+  .badge{display:inline-block;font-size:.8rem;background:#eee;border-radius:6px;padding:2px 8px;margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <div>Simulado de Estratégia, Diagnóstico e Governança <span class="badge">30 questões</span></div>
+</header>
+<main id="app">
+  <!-- Questões serão renderizadas via JS -->
+</main>
+
+<div class="controls">
+  <div class="score" id="score">Acertos 0 de 30</div>
+  <div class="muted" id="answered">Respondidas 0</div>
+  <button id="finish">Finalizar e revisar</button>
+  <button class="secondary" id="reset">Reiniciar</button>
+</div>
+
+<footer class="small">
+  Conteúdo para estudo acadêmico. Correção instantânea e explicações breves.
+</footer>
+
+<script>
+/*
+Regras
+1) cada questão vale 1 ponto e só conta uma vez
+2) ao marcar, mostra explicação da alternativa escolhida e da correta
+3) mudar de alternativa não soma novamente
+4) botão finalizar rola para o primeiro item não respondido e destaca pendências
+*/
+const quiz = [
+  {
+    q: "A análise estratégica busca entender fatores que afetam o desempenho organizacional. Qual opção descreve melhor esse objetivo.",
+    a: [
+      {t:"Aumentar lucro imediato sem diagnóstico", ok:false, why:"foca em curto prazo e ignora diagnóstico"},
+      {t:"Identificar fatores que afetam o desempenho organizacional", ok:true, whyOK:"define o foco da análise no desempenho e nos vetores que o influenciam"},
+      {t:"Criar produtos sem avaliar o ambiente", ok:false, why:"ignora ambiente e capacidades"},
+      {t:"Reduzir estrutura por padrão", ok:false, why:"redução estrutural não é objetivo universal"}
+    ],
+    correctLabel:"Identificar fatores que afetam o desempenho organizacional"
+  },
+  {
+    q: "Quais são os quatro pontos do mapeamento diagnóstico.",
+    a: [
+      {t:"Estratégia, cultura, missão e visão", ok:false, why:"mistura direção com identidade e não cobre processos e recursos"},
+      {t:"Clientes, concorrentes, fornecedores e ambiente", ok:false, why:"lista atores externos e omite estrutura interna"},
+      {t:"Recursos, processos, estrutura e desempenho organizacional", ok:true, whyOK:"cobre insumos, fluxos, arranjo e resultado"},
+      {t:"Processos, inovação, estrutura e mercado", ok:false, why:"não inclui desempenho como dimensão explícita"}
+    ],
+    correctLabel:"Recursos, processos, estrutura e desempenho organizacional"
+  },
+  {
+    q: "Quais são as quatro categorias da matriz SWOT.",
+    a: [
+      {t:"Forças, fraquezas, oportunidades e ameaças", ok:true, whyOK:"duas internas e duas externas"},
+      {t:"Forças, estratégias, mercado e riscos", ok:false, why:"não separa ambiente interno e externo de forma correta"},
+      {t:"Recursos, capacidades, oportunidades e riscos", ok:false, why:"não é a formulação clássica"},
+      {t:"Pontos fortes, clientes, fraquezas e ameaças", ok:false, why:"clientes não é quadrante da matriz"}
+    ],
+    correctLabel:"Forças, fraquezas, oportunidades e ameaças"
+  },
+  {
+    q: "Estratégia do tipo SO na matriz SWOT utiliza qual combinação.",
+    a: [
+      {t:"Corrigir fraquezas com oportunidades", ok:false, why:"isso descreve WO"},
+      {t:"Utilizar forças para explorar oportunidades", ok:true, whyOK:"alavanca pontos fortes para capturar o ambiente favorável"},
+      {t:"Minimizar ameaças com fraquezas", ok:false, why:"não faz sentido tático e não é um pareamento clássico"},
+      {t:"Usar forças para neutralizar fraquezas", ok:false, why:"mistura dimensões internas"}
+    ],
+    correctLabel:"Utilizar forças para explorar oportunidades"
+  },
+  {
+    q: "Limitação típica da SWOT quando aplicada sem rigor.",
+    a: [
+      {t:"Gera sempre indicadores quantitativos", ok:false, why:"não fornece métricas por padrão"},
+      {t:"Considera todas as sinergias entre unidades", ok:false, why:"não modela sinergias"},
+      {t:"Pode induzir análises genéricas e pouco acionáveis", ok:true, whyOK:"exige hierarquização e complemento com outras análises"},
+      {t:"Substitui análises financeiras", ok:false, why:"não substitui finanças"}
+    ],
+    correctLabel:"Pode induzir análises genéricas e pouco acionáveis"
+  },
+  {
+    q: "Dimensões da PESTEL.",
+    a: [
+      {t:"Política, economia, sociedade, tecnologia, ecologia e legislação", ok:true, whyOK:"abrange ambiente institucional e tecnológico"},
+      {t:"Política, educação, ética, logística, energia e leis", ok:false, why:"não é o conjunto clássico"},
+      {t:"Planejamento, economia, trabalho, tecnologia, ecologia e leis", ok:false, why:"planejamento não é componente externo"},
+      {t:"Política, estrutura, sustentabilidade, transporte, educação e leis", ok:false, why:"estrutura é interna"}
+    ],
+    correctLabel:"Política, economia, sociedade, tecnologia, ecologia e legislação"
+  },
+  {
+    q: "Fatores econômicos na PESTEL.",
+    a: [
+      {t:"Inflação, desemprego, taxa de juros e renda disponível", ok:true, whyOK:"compõem a dimensão econômica"},
+      {t:"Cultura, educação e religião", ok:false, why:"pertencem ao social"},
+      {t:"Sustentabilidade e legislação", ok:false, why:"ecológico e legal"},
+      {t:"Concorrência e inovação", ok:false, why:"concorrência não é macroeconômico direto"}
+    ],
+    correctLabel:"Inflação, desemprego, taxa de juros e renda disponível"
+  },
+  {
+    q: "Aplicação prática da PESTEL.",
+    a: [
+      {t:"Mapear ameaças estruturais e oportunidades institucionais", ok:true, whyOK:"suporta leitura do macroambiente e antecipa impactos"},
+      {t:"Definir organograma", ok:false, why:"estrutura interna não é foco da PESTEL"},
+      {t:"Precificar produtos taticamente", ok:false, why:"instrumento macro e não tático de preço"},
+      {t:"Desenhar processos internos", ok:false, why:"foco está fora da firma"}
+    ],
+    correctLabel:"Mapear ameaças estruturais e oportunidades institucionais"
+  },
+  {
+    q: "Na BCG, vaca leiteira apresenta.",
+    a: [
+      {t:"Baixo crescimento e alta participação", ok:true, whyOK:"gera caixa e demanda investimento moderado"},
+      {t:"Alto crescimento e alta participação", ok:false, why:"configura estrela"},
+      {t:"Alto crescimento e baixa participação", ok:false, why:"configura interrogação"},
+      {t:"Baixo crescimento e baixa participação", ok:false, why:"configura abacaxi ou cão"}
+    ],
+    correctLabel:"Baixo crescimento e alta participação"
+  },
+  {
+    q: "Uso da matriz BCG.",
+    a: [
+      {t:"Classificar portfólio por participação relativa e crescimento do setor", ok:true, whyOK:"apoia decisões de alocação de recursos"},
+      {t:"Avaliar política cambial", ok:false, why:"fora do escopo"},
+      {t:"Definir missão e visão", ok:false, why:"não é instrumento de identidade"},
+      {t:"Medir satisfação de clientes", ok:false, why:"não mede NPS"}
+    ],
+    correctLabel:"Classificar portfólio por participação relativa e crescimento do setor"
+  },
+  {
+    q: "Limitação da BCG.",
+    a: [
+      {t:"Considera sinergias e barreiras de entrada", ok:false, why:"ignora esses elementos"},
+      {t:"Reduz a análise a dois critérios", ok:true, whyOK:"crescimento e participação não capturam toda a dinâmica competitiva"},
+      {t:"Exige DCF detalhado para cada unidade", ok:false, why:"não requer modelagem financeira profunda"},
+      {t:"Substitui todo o planejamento", ok:false, why:"ferramenta de apoio"}
+    ],
+    correctLabel:"Reduz a análise a dois critérios"
+  },
+  {
+    q: "Uso de dados na estratégia.",
+    a: [
+      {t:"Transformar suposições em evidências e apoiar decisões", ok:true, whyOK:"permite avaliar desempenho, padrões e cenários"},
+      {t:"Eliminar necessidade de julgamento gerencial", ok:false, why:"dados complementam julgamento"},
+      {t:"Focar apenas em finanças", ok:false, why:"abrange múltiplas dimensões"},
+      {t:"Evitar modelos preditivos", ok:false, why:"modelos ampliam capacidade decisória"}
+    ],
+    correctLabel:"Transformar suposições em evidências e apoiar decisões"
+  },
+  {
+    q: "Definição de inteligência estratégica.",
+    a: [
+      {t:"Relatório anual de custos", ok:false, why:"escopo limitado"},
+      {t:"Processo contínuo de vigilância, análise e recomendação", ok:true, whyOK:"integra fontes internas e externas para subsidiar decisão"},
+      {t:"Plano de marketing trimestral", ok:false, why:"não descreve a função"},
+      {t:"Checklist de compliance", ok:false, why:"não é atividade de inteligência"}
+    ],
+    correctLabel:"Processo contínuo de vigilância, análise e recomendação"
+  },
+  {
+    q: "Força presente no modelo de Porter.",
+    a: [
+      {t:"Rivalidade entre concorrentes", ok:true, whyOK:"compõe o conjunto das cinco forças"},
+      {t:"Taxa de câmbio", ok:false, why:"macroambiente e não força competitiva direta no modelo"},
+      {t:"Política fiscal", ok:false, why:"componente PESTEL"},
+      {t:"Clima organizacional", ok:false, why:"dimensão interna"}
+    ],
+    correctLabel:"Rivalidade entre concorrentes"
+  },
+  {
+    q: "Fator que reduz a ameaça de novos entrantes.",
+    a: [
+      {t:"Baixo capital inicial", ok:false, why:"reduz barreira e aumenta a ameaça"},
+      {t:"Ausência de diferenciação", ok:false, why:"facilita entrada"},
+      {t:"Patentes e regulação", ok:true, whyOK:"erigem barreiras e desestimulam entrada"},
+      {t:"Canais de distribuição abertos", ok:false, why:"facilitam entrada"}
+    ],
+    correctLabel:"Patentes e regulação"
+  },
+  {
+    q: "Tipo de cenário estratégico.",
+    a: [
+      {t:"Tendencial ou intermediário", ok:true, whyOK:"projeta continuidade com ajustes"},
+      {t:"Disruptivo inevitável", ok:false, why:"rótulo genérico e não tradicional no trio clássico"},
+      {t:"Conservador absoluto", ok:false, why:"não é rótulo consagrado no trio clássico"},
+      {t:"Equilíbrio perfeito", ok:false, why:"termo não usual na técnica"}
+    ],
+    correctLabel:"Tendencial ou intermediário"
+  },
+  {
+    q: "VRIO avalia recursos sob quatro critérios. Qual conjunto está correto.",
+    a: [
+      {t:"Valioso, raro, inimitável e organizado", ok:true, whyOK:"estrutura clássica do acrônimo"},
+      {t:"Valioso, raro, ilimitado e organizado", ok:false, why:"o critério é inimitável e não ilimitado"},
+      {t:"Visível, resistente, inalterável e operacional", ok:false, why:"não corresponde ao framework"},
+      {t:"Valor, retorno, imposto e orçamento", ok:false, why:"lista financeira e não VRIO"}
+    ],
+    correctLabel:"Valioso, raro, inimitável e organizado"
+  },
+  {
+    q: "Primeira etapa na construção de cenários.",
+    a: [
+      {t:"Criação de narrativas", ok:false, why:"vem após análise das variáveis"},
+      {t:"Validação com especialistas", ok:false, why:"etapa posterior"},
+      {t:"Identificação de variáveis críticas", ok:true, whyOK:"define motores de futuro e incertezas"},
+      {t:"Formulação de estratégias contingenciais", ok:false, why:"deriva dos cenários"}
+    ],
+    correctLabel:"Identificação de variáveis críticas"
+  },
+  {
+    q: "Estratégia genérica de Porter.",
+    a: [
+      {t:"Liderança em custo", ok:true, whyOK:"conjunto inclui diferenciação e foco"},
+      {t:"Coopetição", ok:false, why:"conceito útil mas não faz parte do trio clássico"},
+      {t:"Open innovation", ok:false, why:"abordagem de inovação e não estratégia genérica"},
+      {t:"Expansão horizontal", ok:false, why:"movimento corporativo e não estratégia genérica"}
+    ],
+    correctLabel:"Liderança em custo"
+  },
+  {
+    q: "Estratégias da matriz Ansoff.",
+    a: [
+      {t:"Penetração de mercado", ok:true, whyOK:"uma das quatro opções do crescimento"},
+      {t:"Imobilização de capital", ok:false, why:"não é categoria de Ansoff"},
+      {t:"Reengenharia de processos", ok:false, why:"abordagem de melhoria e não crescimento de portfólio"},
+      {t:"Liderança tecnológica", ok:false, why:"posicionamento e não eixo produto/mercado"}
+    ],
+    correctLabel:"Penetração de mercado"
+  },
+  {
+    q: "Integração vertical descreve controle sobre etapas da cadeia. Qual afirmação melhor representa esse controle.",
+    a: [
+      {t:"Controle do fornecimento até a distribuição", ok:true, whyOK:"abrange montante e jusante"},
+      {t:"Expansão no mesmo segmento", ok:false, why:"isso é horizontal"},
+      {t:"Aquisição de participação minoritária em concorrente", ok:false, why:"não define verticalidade por si só"},
+      {t:"Terceirização completa", ok:false, why:"direção oposta ao controle"}
+    ],
+    correctLabel:"Controle do fornecimento até a distribuição"
+  },
+  {
+    q: "Valores e crenças na organização.",
+    a: [
+      {t:"Valores descrevem o que a empresa preza e crenças são rituais praticados", ok:true, whyOK:"valores orientam e crenças aparecem em práticas e símbolos"},
+      {t:"Valores são rituais e crenças são métricas", ok:false, why:"inversão de papéis"},
+      {t:"Ambos são apenas slogans", ok:false, why:"não se limitam a comunicação"},
+      {t:"Valores são metas trimestrais", ok:false, why:"metas pertencem a planejamento"}
+    ],
+    correctLabel:"Valores descrevem o que a empresa preza e crenças são rituais praticados"
+  },
+  {
+    q: "Sequência de mudança baseada em oito etapas de Kotter. Qual item está coerente com o início.",
+    a: [
+      {t:"Estabelecer senso de urgência e formar coalizão", ok:true, whyOK:"inicia com urgência e coalizão de condução"},
+      {t:"Consolidar vitórias antes de comunicar visão", ok:false, why:"comunicação vem antes"},
+      {t:"Capacitar ação após implementar mudanças", ok:false, why:"capacitar antecede institucionalização"},
+      {t:"Criar visão após vitórias de curto prazo", ok:false, why:"a visão surge antes das vitórias"}
+    ],
+    correctLabel:"Estabelecer senso de urgência e formar coalizão"
+  },
+  {
+    q: "Quatro dimensões do BSC.",
+    a: [
+      {t:"Aprendizado, processos, clientes e financeira", ok:true, whyOK:"equilibra vetores de causa e efeito"},
+      {t:"Marketing, vendas, RH e finanças", ok:false, why:"lista áreas e não perspectivas"},
+      {t:"Produção, logística, TI e jurídico", ok:false, why:"são funções e não perspectivas"},
+      {t:"Produto, preço, praça e promoção", ok:false, why:"mix de marketing e não BSC"}
+    ],
+    correctLabel:"Aprendizado, processos, clientes e financeira"
+  },
+  {
+    q: "Diferença prática entre BSC e OKRs.",
+    a: [
+      {t:"BSC foca direção de longo prazo e OKRs organizam metas de curto prazo", ok:true, whyOK:"BSC ancora missão e visão e OKRs desdobram objetivos e resultados chave"},
+      {t:"OKRs definem missão e visão", ok:false, why:"OKRs não definem identidade"},
+      {t:"BSC é checklist mensal", ok:false, why:"é um sistema de gestão de desempenho"},
+      {t:"OKRs substituem indicadores do BSC por completo", ok:false, why:"podem conviver"}
+    ],
+    correctLabel:"BSC foca direção de longo prazo e OKRs organizam metas de curto prazo"
+  },
+  {
+    q: "Governança estratégica descreve arranjos que orientam, controlam e monitoram decisões. Qual opção melhor expressa esse escopo.",
+    a: [
+      {t:"Conjunto de mecanismos, processos e relações para orientar, controlar e monitorar decisões", ok:true, whyOK:"define forma e função"},
+      {t:"Plano tático de vendas", ok:false, why:"nível funcional e não governança"},
+      {t:"Manual operacional da fábrica", ok:false, why:"procedimento e não governança estratégica"},
+      {t:"Calendário de marketing", ok:false, why:"programação e não governança"}
+    ],
+    correctLabel:"Conjunto de mecanismos, processos e relações para orientar, controlar e monitorar decisões"
+  },
+  {
+    q: "Componentes comuns da governança estratégica.",
+    a: [
+      {t:"Conselho de administração, comitês, auditoria independente, compliance e monitoramento de desempenho", ok:true, whyOK:"lista peças típicas do arranjo de controle e direção"},
+      {t:"Apenas diretoria executiva", ok:false, why:"governança inclui instâncias de controle e supervisão"},
+      {t:"Somente auditoria interna", ok:false, why:"não cobre conselho nem comitês"},
+      {t:"Somente planejamento financeiro", ok:false, why:"dimensão única"}
+    ],
+    correctLabel:"Conselho de administração, comitês, auditoria independente, compliance e monitoramento de desempenho"
+  },
+  {
+    q: "Mapeamento SWOT. Qual pareamento descreve WO.",
+    a: [
+      {t:"Usar forças para explorar oportunidades", ok:false, why:"SO"},
+      {t:"Corrigir fraquezas para capturar oportunidades", ok:true, whyOK:"foca melhoria interna para aproveitar o externo favorável"},
+      {t:"Usar forças para reduzir ameaças", ok:false, why:"ST"},
+      {t:"Reduzir fraquezas e fugir de ameaças", ok:false, why:"WT"}
+    ],
+    correctLabel:"Corrigir fraquezas para capturar oportunidades"
+  },
+  {
+    q: "Decisão típica por quadrante na BCG quando há abacaxi com baixa atratividade e pouca participação.",
+    a: [
+      {t:"Desinvestir ou descontinuar", ok:true, whyOK:"libera recursos para opções superiores"},
+      {t:"Investir pesado para manter posição", ok:false, why:"não há base para priorizar alto investimento"},
+      {t:"Manter investimento elevado indefinidamente", ok:false, why:"não gera retorno proporcional"},
+      {t:"Aumentar P&D sem análise do setor", ok:false, why:"gasto sem tese"}
+    ],
+    correctLabel:"Desinvestir ou descontinuar"
+  },
+  {
+    q: "Indicadores úteis na dimensão processos do BSC.",
+    a: [
+      {t:"Lead time, retrabalho e capacidade", ok:true, whyOK:"medem desempenho do fluxo interno"},
+      {t:"NPS e churn", ok:false, why:"pertencem a clientes"},
+      {t:"ROIC e margem líquida", ok:false, why:"dimensão financeira"},
+      {t:"Engajamento e treinamentos por pessoa", ok:false, why:"dimensão aprendizado"}
+    ],
+    correctLabel:"Lead time, retrabalho e capacidade"
+  },
+  {
+    q: "Dados preditivos na gestão estratégica.",
+    a: [
+      {t:"Apoiam projeções de demanda e risco", ok:true, whyOK:"modelos ampliam visão de cenários"},
+      {t:"Impedem testar hipóteses", ok:false, why:"facilitam teste e validação"},
+      {t:"Eliminam necessidade de dados históricos", ok:false, why:"histórico alimenta modelos"},
+      {t:"Servem apenas para marketing", ok:false, why:"aplicação é ampla"}
+    ],
+    correctLabel:"Apoiam projeções de demanda e risco"
+  },
+  {
+    q: "Na análise PESTEL, legislação afeta decisões ao definir.",
+    a: [
+      {t:"Regras de conformidade e penalidades", ok:true, whyOK:"condiciona custo e risco de operação"},
+      {t:"Estrutura do organograma", ok:false, why:"tema interno"},
+      {t:"Layout da fábrica", ok:false, why:"decisão técnica interna salvo normas específicas"},
+      {t:"Ciclo de vida do produto", ok:false, why:"pode influenciar mas não determina por si só"}
+    ],
+    correctLabel:"Regras de conformidade e penalidades"
+  },
+  {
+    q: "Força de Porter ligada a alternativas que atendem a mesma necessidade de modo distinto.",
+    a: [
+      {t:"Ameaça de produtos substitutos", ok:true, whyOK:"pressão de opções que cumprem a mesma função"},
+      {t:"Poder de fornecedores", ok:false, why:"outra força"},
+      {t:"Poder de clientes", ok:false, why:"outra força"},
+      {t:"Ameaça de novos entrantes", ok:false, why:"diferente de substitutos"}
+    ],
+    correctLabel:"Ameaça de produtos substitutos"
+  },
+  {
+    q: "Estratégia do tipo ST na matriz SWOT.",
+    a: [
+      {t:"Usar forças para reduzir ameaças", ok:true, whyOK:"alavanca capacidades para proteger posição"},
+      {t:"Reduzir fraquezas e fugir de ameaças", ok:false, why:"WT"},
+      {t:"Corrigir fraquezas para capturar oportunidades", ok:false, why:"WO"},
+      {t:"Usar oportunidades para criar forças", ok:false, why:"não é formulação padrão"}
+    ],
+    correctLabel:"Usar forças para reduzir ameaças"
+  },
+  {
+    q: "Estratégia do tipo WT na matriz SWOT.",
+    a: [
+      {t:"Minimizar fraquezas e evitar ameaças", ok:true, whyOK:"defensiva e de redução de risco"},
+      {t:"Alavancar forças para crescer", ok:false, why:"SO"},
+      {t:"Converter fraquezas em forças usando ameaças", ok:false, why:"não descreve par clássico"},
+      {t:"Criar oportunidades internas", ok:false, why:"oportunidade é externa"}
+    ],
+    correctLabel:"Minimizar fraquezas e evitar ameaças"
+  }
+];
+
+const app = document.getElementById("app");
+const scoreEl = document.getElementById("score");
+const answeredEl = document.getElementById("answered");
+let state = {score:0, answered:0, locked:{}};
+
+function render(){
+  app.innerHTML = "";
+  quiz.forEach((item, idx)=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    const title = document.createElement("div");
+    title.className = "q-title";
+    title.textContent = (idx+1)+") "+item.q;
+    const options = document.createElement("div");
+    options.className = "options";
+
+    item.a.forEach((opt, j)=>{
+      const label = document.createElement("label");
+      label.className = "option";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "q"+idx;
+      input.value = j;
+
+      const span = document.createElement("span");
+      span.textContent = opt.t;
+
+      label.appendChild(input);
+      label.appendChild(span);
+      options.appendChild(label);
+
+      input.addEventListener("change", ()=>{
+        check(idx, j, label, card);
+      });
+    });
+
+    const feedback = document.createElement("div");
+    feedback.className = "feedback muted small";
+    feedback.id = "fb"+idx;
+    feedback.style.display = "none";
+
+    card.appendChild(title);
+    card.appendChild(options);
+    card.appendChild(feedback);
+    app.appendChild(card);
+  });
+  updateBars();
+}
+
+function check(qIndex, aIndex, labelEl, cardEl){
+  const q = quiz[qIndex];
+  const chosen = q.a[aIndex];
+  const fb = document.getElementById("fb"+qIndex);
+  const already = state.locked[qIndex] === true;
+
+  // limpar estilos anteriores
+  [...cardEl.querySelectorAll(".option")].forEach(o=>{
+    o.classList.remove("correct","wrong");
+  });
+
+  // marcar estilos e feedback
+  fb.style.display = "block";
+  if(chosen.ok){
+    labelEl.classList.add("correct");
+    fb.className = "feedback ok";
+    const expCorreta = chosen.whyOK ? chosen.whyOK : "resposta correta";
+    fb.innerHTML = "<strong>Correto</strong>. "+expCorreta;
+    if(!already){
+      state.score += 1;
+      state.answered += 1;
+      state.locked[qIndex] = true;
+    }
+  }else{
+    labelEl.classList.add("wrong");
+    // achar a correta para explicar
+    const right = q.a.find(x=>x.ok);
+    const expErr = chosen.why ? chosen.why : "não atende ao enunciado";
+    const expOk = right.whyOK ? right.whyOK : "atende ao enunciado";
+    fb.className = "feedback err";
+    fb.innerHTML = "<strong>Incorreto</strong>. "+expErr+"."+
+                   " Correta "+q.correctLabel+". "+expOk+".";
+    if(!already){
+      state.answered += 1;
+      state.locked[qIndex] = true;
+    }
+  }
+  updateBars();
+}
+
+function updateBars(){
+  scoreEl.textContent = `Acertos ${state.score} de ${quiz.length}`;
+  answeredEl.textContent = `Respondidas ${state.answered}`;
+}
+
+document.getElementById("finish").addEventListener("click", ()=>{
+  // rolar para a primeira não respondida
+  let target = null;
+  for(let i=0;i<quiz.length;i++){
+    if(!state.locked[i]){
+      target = i; break;
+    }
+  }
+  if(target===null){
+    alert(`Resultado final ${state.score} de ${quiz.length}`);
+  }else{
+    const card = app.children[target];
+    card.scrollIntoView({behavior:"smooth",block:"center"});
+    card.style.boxShadow = "0 0 0 3px #ffcd38 inset";
+    setTimeout(()=>{ card.style.boxShadow=""; }, 1800);
+  }
+});
+
+document.getElementById("reset").addEventListener("click", ()=>{
+  state = {score:0, answered:0, locked:{}};
+  render();
+  window.scrollTo({top:0,behavior:"smooth"});
+});
+
+render();
+</script>
+</body>
+</html>
